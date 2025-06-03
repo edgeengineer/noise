@@ -58,7 +58,7 @@ import Foundation
 /// - **NNpsk2**: NN with PSK at end of second message
 /// - **NKpsk0, NKpsk2**: NK variants with PSK
 /// - **XXpsk3**: XX with PSK at end of third message
-public enum HandshakePattern: String, CaseIterable {
+public enum HandshakePattern: String, CaseIterable, Sendable {
     case N, K, X, NN, NK, NX, XN, XK, XX, KN, KK, KX, IN, IK, IX
     // PSK variants - start with most common ones
     case NNpsk0, NNpsk2, NKpsk0, NKpsk2, XXpsk3
@@ -495,7 +495,7 @@ public struct HandshakeState {
 /// - Public keys can be shared freely for identity verification
 /// - Generate new ephemeral keys for each session when possible
 /// - Consider key rotation policies for long-term static keys
-public struct KeyPair {
+public struct KeyPair: Sendable {
     /// The private key (32 bytes)
     public let privateKey: Data
     

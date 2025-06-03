@@ -16,7 +16,8 @@ A Swift implementation of the [Noise Protocol Framework](https://noiseprotocol.o
 - 🛡️ **Robust**: Comprehensive error handling and test vector validation
 - 🎯 **Battle-tested**: Extensive fuzz testing for vulnerability discovery
 - 🌍 **Cross-platform**: Support for macOS, Linux, iOS, visionOS, tvOS, WASM, and Android
-- 🧪 **Tested**: Comprehensive test suite using Swift Testing (78/78 tests passing)
+- 🧪 **Tested**: Comprehensive test suite using Swift Testing (90/90 tests passing)
+- ⚡ **Async/Await**: Modern Swift concurrency support for networking applications
 - 📚 **Well-documented**: Full API documentation with examples
 
 ## Installation
@@ -101,6 +102,38 @@ let _ = try responder.readHandshakeMessage(message3)
 
 // Now both sides are authenticated and have secure channels
 ```
+
+### Async/Await Support
+
+Modern Swift concurrency is fully supported for networking applications:
+
+```swift
+import Noise
+
+// Async handshake creation
+var session = try await NoiseProtocol.handshakeAsync(pattern: .XX, initiator: true, staticKeypair: keypair)
+
+// Async message operations
+let handshakeMessage = try await session.writeHandshakeMessageAsync()
+let response = try await session.readHandshakeMessageAsync(receivedData)
+
+// Async encrypted messaging
+let plaintext = Data("Hello, async world!".utf8)
+let ciphertext = try await session.writeMessageAsync(plaintext)
+let decrypted = try await session.readMessageAsync(ciphertext)
+
+// Async rekeying for forward secrecy
+try await session.rekeyAsync()
+
+// Async stream processing with AsyncSequence
+let messageStream = AsyncNoiseMessageStream(session: session, transport: webSocket)
+for try await plaintext in messageStream {
+    let message = String(data: plaintext, encoding: .utf8) ?? "Invalid UTF-8"
+    print("Received: \(message)")
+}
+```
+
+Perfect for integration with URLSession, WebSocket, and other async networking APIs.
 
 ## Supported Handshake Patterns
 
@@ -204,8 +237,13 @@ if session.shouldRekey() {
 See the [examples](./examples) directory for more detailed usage examples:
 
 - [Basic Client-Server](./examples/client-server)
-- [File Transfer](./examples/file-transfer)
-- [Streaming Data](./examples/streaming)
+- [Known Key Exchange](./examples/known-key)
+- [Simple NN Pattern](./examples/simple-nn)
+- [Async Networking Examples](./examples/async-networking)
+  - WebSocket secure communication
+  - TCP client-server with Noise encryption
+  - HTTP client with Noise-encrypted payloads
+  - Streaming data processing with AsyncSequence
 
 ## Requirements
 

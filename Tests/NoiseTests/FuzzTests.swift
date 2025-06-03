@@ -67,7 +67,7 @@ struct FuzzTests {
                         // If it doesn't throw, that's fine - some random data might be valid
                     } catch {
                         // Expected to throw errors for invalid data (any error is acceptable)
-                        #expect(true) // Any error is acceptable for fuzz testing
+                        #expect(Bool(true)) // Any error is acceptable for fuzz testing
                     }
                 } catch {
                     // Pattern creation might fail, which is acceptable
@@ -94,7 +94,7 @@ struct FuzzTests {
                         let _ = try session.readHandshakeMessage(testData)
                     } catch {
                         // Expected to handle edge cases gracefully (any error is acceptable)
-                        #expect(true) // Any error is acceptable for fuzz testing
+                        #expect(Bool(true)) // Any error is acceptable for fuzz testing
                     }
                 }
             } catch {
@@ -134,7 +134,7 @@ struct FuzzTests {
                         let _ = try responder.readHandshakeMessage(fuzzedMessage)
                     } catch {
                         // Expected to handle corrupted data (any error is acceptable)
-                        #expect(true) // Any error is acceptable for fuzz testing
+                        #expect(Bool(true)) // Any error is acceptable for fuzz testing
                     }
                 } catch {
                     // Pattern setup might fail
@@ -154,7 +154,7 @@ struct FuzzTests {
             // Complete handshakes and test transport phase
             for pattern in simplePatterns {
                 do {
-                    var (initiator, responder) = try completeHandshakeForPattern(pattern)
+                    var (_, responder) = try completeHandshakeForPattern(pattern)
                     
                     // Generate random transport messages
                     for _ in 0..<3 {
@@ -164,7 +164,7 @@ struct FuzzTests {
                             let _ = try responder.readMessage(randomMessage)
                         } catch {
                             // Expected authentication failures for random data (any error is acceptable)
-                            #expect(true) // Any error is acceptable for fuzz testing
+                            #expect(Bool(true)) // Any error is acceptable for fuzz testing
                         }
                     }
                 } catch {
@@ -203,7 +203,7 @@ struct FuzzTests {
                             #expect(Bool(false), "Should have failed with corrupted message")
                         } catch {
                             // Expected authentication failure
-                            #expect(error is NoiseError || error is Error)
+                            #expect(Bool(true)) // Any error is acceptable for fuzz testing
                         }
                     }
                 } catch {
@@ -270,7 +270,7 @@ struct FuzzTests {
                 let _ = try Curve25519.dh(privateKey: alice.privateKey, publicKey: invalidPublicKeyData)
             } catch {
                 // May fail with invalid public key data (any error is acceptable)
-                #expect(true) // Any error is acceptable for fuzz testing
+                #expect(Bool(true)) // Any error is acceptable for fuzz testing
             }
         }
     }
