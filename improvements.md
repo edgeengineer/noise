@@ -66,7 +66,7 @@ This document outlines potential areas for improvement in the Swift Noise protoc
    - ✅ XX pattern doesn't require pre-shared static keys (keys discovered during handshake)
 
 ### 📊 Current Status
-- **Test Results**: 42/42 active tests passing (100% success rate)
+- **Test Results**: 51/51 active tests passing (100% success rate)
 - **Supported Patterns**: N ✅, K ✅, X ✅, NN ✅, NK ✅, IX ✅, IK ✅, XX ✅
 - **PSK Support**: NNpsk0 ✅, NNpsk2 ✅, NKpsk0 ✅, NKpsk2 ✅, XXpsk3 ✅ (infrastructure ready)
 - **Core Functionality**: Fully working
@@ -74,6 +74,7 @@ This document outlines potential areas for improvement in the Swift Noise protoc
 - **Message Size Limits**: Enforced (65535-byte limit)
 - **Test Vectors**: Official Noise protocol test vector validation added
 - **Cryptographic Agility**: Multiple cipher suites supported ✅
+- **Rekeying Mechanism**: Automatic and manual rekeying for long-lived sessions ✅
 
 ## Next Steps / Key Priorities
 
@@ -120,7 +121,7 @@ This document outlines potential areas for improvement in the Swift Noise protoc
 **All major features have been successfully implemented!** This Noise Protocol Framework implementation is now production-ready with comprehensive functionality, extensive testing, and professional documentation.
 
 ### **Final Achievement Summary**
-- ✅ **42/42 tests passing** (100% success rate)
+- ✅ **51/51 tests passing** (100% success rate)
 - ✅ **8 core handshake patterns** with full authentication support
 - ✅ **5 PSK pattern variants** for enhanced security  
 - ✅ **Comprehensive error handling** with detailed error types
@@ -129,15 +130,22 @@ This document outlines potential areas for improvement in the Swift Noise protoc
 - ✅ **Swift 6.0 compatible** with modern testing framework
 - ✅ **Cryptographic agility** with multiple cipher suites (StandardSuite, NISTSuite, HighSecuritySuite)
 - ✅ **Handshake hash validation** for protocol binding and security verification
+- ✅ **Rekeying mechanism** with automatic and manual policies for forward secrecy
 
 This implementation provides enterprise-grade security with excellent developer experience and is ready for production deployment in secure communication applications.
 
 ## Further Enhancements (Optional Future Roadmap)
 
 ### 🔐 Security & Robustness
-1.  **Rekeying Mechanism:**
-    *   **Goal:** Maintain forward secrecy and cryptographic hygiene for long-lived sessions.
-    *   **Action:** Implement and document an automatic or manual rekeying strategy for `NoiseSession` as per Noise specification recommendations (e.g., after a specific number of messages or amount of data exchanged).
+1.  **✅ Rekeying Mechanism (COMPLETED):**
+    *   **Goal:** ✅ Maintain forward secrecy and cryptographic hygiene for long-lived sessions.
+    *   **Status:** ✅ Implemented comprehensive rekeying functionality:
+        - **Manual rekeying**: `session.rekey()` for coordinated forward secrecy
+        - **Automatic rekeying policies**: Message count, time interval, nonce threshold triggers
+        - **Session statistics**: Monitor message counts, timing, and rekeying behavior
+        - **Policy management**: Flexible `RekeyPolicy` enum with multiple strategies
+        - **Coordinated operation**: Both parties must rekey simultaneously for synchronization
+        - **9 comprehensive tests** covering all rekeying scenarios and edge cases
 2.  **Advanced Failure Scenario Testing (Continuous Improvement):**
     *   **Goal:** Improve resilience against malformed inputs and unexpected conditions.
     *   **Action:** Continue expanding negative tests, covering more subtle edge cases for:

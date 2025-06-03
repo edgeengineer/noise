@@ -16,6 +16,37 @@
 
 import Foundation
 
+/// Policy for automatic rekeying in long-lived Noise sessions
+///
+/// Rekeying provides forward secrecy by periodically updating cipher keys,
+/// ensuring that compromise of current keys cannot decrypt past messages.
+///
+/// ## Usage
+///
+/// ```swift
+/// // Rekey after every 1000 messages
+/// session.rekeyPolicy = .messageCount(1000)
+///
+/// // Rekey after 1 hour
+/// session.rekeyPolicy = .timeInterval(3600)
+///
+/// // Manual rekeying only
+/// session.rekeyPolicy = .manual
+/// ```
+public enum RekeyPolicy {
+    /// No automatic rekeying - rekey() must be called manually
+    case manual
+    
+    /// Rekey after sending/receiving a specified number of messages
+    case messageCount(Int)
+    
+    /// Rekey after a specified time interval (in seconds)
+    case timeInterval(TimeInterval)
+    
+    /// Rekey when nonce reaches a specified threshold (prevents nonce exhaustion)
+    case nonceThreshold(UInt64)
+}
+
 /// A Swift implementation of the Noise Protocol Framework
 ///
 /// The Noise Protocol Framework is a framework for building cryptographic protocols based on
@@ -164,6 +195,19 @@ public struct NoiseProtocol {
 /// 1. **Create session**: Use `NoiseProtocol.handshake()` to create a session
 /// 2. **Perform handshake**: Exchange handshake messages until `isHandshakeComplete` is `true`
 /// 3. **Send/receive messages**: Use `writeMessage()` and `readMessage()` for encrypted communication
+/// 4. **Optional rekeying**: Use `rekey()` for forward secrecy in long-lived sessions
+///
+/// ## Rekeying
+///
+/// For long-lived sessions, periodic rekeying provides forward secrecy:
+///
+/// ```swift
+/// // Manual rekeying
+/// try session.rekey()
+///
+/// // Automatic rekeying after 1000 messages
+/// session.rekeyPolicy = .messageCount(1000)
+/// ```
 ///
 /// ## Example
 ///
@@ -196,6 +240,21 @@ public struct NoiseSession {
     private var sendCipher: CipherState<ChaChaPoly>?
     private var receiveCipher: CipherState<ChaChaPoly>?
     private var handshakeHash: Data?
+    
+    /// Policy for automatic rekeying
+    public var rekeyPolicy: RekeyPolicy = .manual
+    
+    /// Counter for sent messages (used for message-based rekeying)
+    private var sentMessageCount: Int = 0
+    
+    /// Counter for received messages (used for message-based rekeying)  
+    private var receivedMessageCount: Int = 0
+    
+    /// Timestamp when session was created (used for time-based rekeying)
+    private let sessionStartTime: Date = Date()
+    
+    /// Timestamp of last rekey operation
+    private var lastRekeyTime: Date = Date()
     
     /// Whether the handshake phase has completed
     ///
@@ -370,8 +429,12 @@ public struct NoiseSession {
             throw NoiseError.invalidMessageLength(length: plaintext.count)
         }
         
+        // Check if automatic rekeying is needed before sending
+        try checkAndPerformAutomaticRekey()
+        
         let ciphertext = try cipher.encryptWithAd(ad: Data(), plaintext: plaintext)
         self.sendCipher = cipher
+        sentMessageCount += 1
         return ciphertext
     }
     
@@ -419,6 +482,11 @@ public struct NoiseSession {
         
         let plaintext = try cipher.decryptWithAd(ad: Data(), ciphertext: ciphertext)
         self.receiveCipher = cipher
+        receivedMessageCount += 1
+        
+        // Check if automatic rekeying is needed after receiving
+        try checkAndPerformAutomaticRekey()
+        
         return plaintext
     }
     
@@ -446,5 +514,141 @@ public struct NoiseSession {
     /// protocol, ensuring that both parties completed the same handshake.
     public func getHandshakeHash() -> Data? {
         return handshakeHash ?? handshakeState?.symmetricState.getHandshakeHash()
+    }
+    
+    // MARK: - Rekeying Functionality
+    
+    /// Manually performs rekeying for forward secrecy
+    ///
+    /// Rekeying updates both send and receive cipher keys, providing forward secrecy by
+    /// ensuring that compromise of current keys cannot decrypt past messages. Both parties
+    /// must call this method at the same time to maintain synchronization.
+    ///
+    /// ## Usage
+    ///
+    /// ```swift
+    /// // Manual rekeying for long-lived sessions
+    /// try session.rekey()
+    ///
+    /// // Rekey after processing sensitive data
+    /// if processedSensitiveData {
+    ///     try session.rekey()
+    /// }
+    /// ```
+    ///
+    /// ## Security
+    ///
+    /// - Provides forward secrecy for long-lived sessions
+    /// - Protects against key compromise attacks
+    /// - Should be coordinated between both parties
+    /// - Resets message counters after successful rekey
+    ///
+    /// - Throws: `NoiseError.handshakeNotComplete` if called before handshake completion
+    ///
+    /// - Important: Both parties must rekey at the exact same time to maintain session integrity
+    public mutating func rekey() throws {
+        guard sendCipher != nil && receiveCipher != nil else {
+            throw NoiseError.handshakeNotComplete
+        }
+        
+        // Perform rekeying on both cipher states
+        sendCipher?.rekey()
+        receiveCipher?.rekey()
+        
+        // Reset counters and update timestamps
+        sentMessageCount = 0
+        receivedMessageCount = 0
+        lastRekeyTime = Date()
+    }
+    
+    /// Checks if automatic rekeying should be performed based on the current policy
+    ///
+    /// This method is called internally by `writeMessage()` and `readMessage()` to
+    /// automatically perform rekeying when the configured policy conditions are met.
+    ///
+    /// - Throws: `NoiseError.handshakeNotComplete` if automatic rekey is attempted before handshake completion
+    private mutating func checkAndPerformAutomaticRekey() throws {
+        guard isHandshakeComplete else { return }
+        
+        let shouldRekey: Bool
+        
+        switch rekeyPolicy {
+        case .manual:
+            shouldRekey = false
+            
+        case .messageCount(let threshold):
+            shouldRekey = sentMessageCount >= threshold || receivedMessageCount >= threshold
+            
+        case .timeInterval(let interval):
+            shouldRekey = Date().timeIntervalSince(lastRekeyTime) >= interval
+            
+        case .nonceThreshold(let threshold):
+            // Check if either cipher is approaching nonce exhaustion
+            // Note: This is a conservative check - actual nonce values aren't exposed
+            shouldRekey = sentMessageCount >= threshold || receivedMessageCount >= threshold
+        }
+        
+        if shouldRekey {
+            try rekey()
+        }
+    }
+    
+    /// Returns statistics about the current session for monitoring rekeying behavior
+    ///
+    /// Provides information about message counts, timing, and rekeying status that can be
+    /// used to monitor session health and rekeying behavior.
+    ///
+    /// - Returns: A dictionary containing session statistics
+    ///
+    /// ## Usage
+    ///
+    /// ```swift
+    /// let stats = session.getSessionStatistics()
+    /// print("Sent messages: \(stats["sentMessages"] ?? 0)")
+    /// print("Time since last rekey: \(stats["timeSinceLastRekey"] ?? 0)")
+    /// ```
+    public func getSessionStatistics() -> [String: Any] {
+        return [
+            "sentMessages": sentMessageCount,
+            "receivedMessages": receivedMessageCount,
+            "totalMessages": sentMessageCount + receivedMessageCount,
+            "sessionDuration": Date().timeIntervalSince(sessionStartTime),
+            "timeSinceLastRekey": Date().timeIntervalSince(lastRekeyTime),
+            "rekeyPolicy": String(describing: rekeyPolicy),
+            "handshakeComplete": isHandshakeComplete
+        ]
+    }
+    
+    /// Checks if the session should be rekeyed based on the current policy
+    ///
+    /// This method allows checking whether rekeying would be triggered without
+    /// actually performing the rekey operation. Useful for monitoring and logging.
+    ///
+    /// - Returns: `true` if the session should be rekeyed according to the current policy
+    ///
+    /// ## Usage
+    ///
+    /// ```swift
+    /// if session.shouldRekey() {
+    ///     print("Session is ready for rekeying")
+    ///     try session.rekey()
+    /// }
+    /// ```
+    public func shouldRekey() -> Bool {
+        guard isHandshakeComplete else { return false }
+        
+        switch rekeyPolicy {
+        case .manual:
+            return false
+            
+        case .messageCount(let threshold):
+            return sentMessageCount >= threshold || receivedMessageCount >= threshold
+            
+        case .timeInterval(let interval):
+            return Date().timeIntervalSince(lastRekeyTime) >= interval
+            
+        case .nonceThreshold(let threshold):
+            return sentMessageCount >= threshold || receivedMessageCount >= threshold
+        }
     }
 }
