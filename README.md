@@ -270,19 +270,41 @@ See the [examples](./examples) directory for more detailed usage examples:
 
 ## Testing
 
-Run the test suite using:
+**Recommended:** Use the stable test runner for reliable results:
 
 ```bash
+./test.sh
+```
+
+This runs tests in batches to prevent resource exhaustion and ensure stability.
+
+### Alternative Testing Methods
+
+For development and debugging, you can run specific test suites:
+
+```bash
+# Run specific test suite
+swift test --parallel --filter "HandshakePatternTests"
+
+# Run all tests in parallel (may be unstable due to resource exhaustion)
+./test.sh --force-parallel
+
+# Or directly with swift test (risky)
 swift test --parallel
 ```
 
-The `--parallel` flag is recommended to avoid resource exhaustion issues when running the comprehensive test suite (103 tests including cryptographic and fuzz tests).
+### Test Stability Notes
 
-For continuous integration or automated testing, always use the parallel flag:
+- **103 total tests** including cryptographic primitives, fuzz testing, async operations, and failure scenarios
+- **Batched execution** prevents resource exhaustion when running intensive cryptographic tests concurrently
+- **Individual test suites** are stable and pass reliably
+- **Full parallel execution** may occasionally fail due to signal code 5 (resource exhaustion)
+
+For **CI/CD**, use the stable approach:
 
 ```bash
-# In CI/CD
-swift test --parallel --enable-code-coverage
+# In CI/CD - reliable and deterministic
+./test.sh
 ```
 
 ## Requirements
