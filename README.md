@@ -15,7 +15,7 @@ A Swift implementation of the [Noise Protocol Framework](https://noiseprotocol.o
 - 🔄 **Forward Secrecy**: Automatic and manual rekeying for long-lived sessions
 - 🛡️ **Robust**: Comprehensive error handling and test vector validation
 - 🌍 **Cross-platform**: Support for macOS, Linux, iOS, visionOS, tvOS, WASM, and Android
-- 🧪 **Tested**: Comprehensive test suite using Swift Testing (51/51 tests passing)
+- 🧪 **Tested**: Comprehensive test suite using Swift Testing (68/68 tests passing)
 - 📚 **Well-documented**: Full API documentation with examples
 
 ## Installation
@@ -26,7 +26,7 @@ Add the following to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/edgeengineer/noise.git", from: "0.0.3")
+    .package(url: "https://github.com/edgeengineer/noise.git", from: "0.0.4")
 ]
 ```
 
