@@ -66,8 +66,8 @@ struct FuzzTests {
                         let _ = try session.readHandshakeMessage(randomMessage)
                         // If it doesn't throw, that's fine - some random data might be valid
                     } catch {
-                        // Expected to throw errors for invalid data
-                        #expect(error is NoiseError || error is Error)
+                        // Expected to throw errors for invalid data (any error is acceptable)
+                        #expect(true) // Any error is acceptable for fuzz testing
                     }
                 } catch {
                     // Pattern creation might fail, which is acceptable
@@ -93,8 +93,8 @@ struct FuzzTests {
                     do {
                         let _ = try session.readHandshakeMessage(testData)
                     } catch {
-                        // Expected to handle edge cases gracefully
-                        #expect(error is NoiseError || error is Error)
+                        // Expected to handle edge cases gracefully (any error is acceptable)
+                        #expect(true) // Any error is acceptable for fuzz testing
                     }
                 }
             } catch {
@@ -133,8 +133,8 @@ struct FuzzTests {
                     do {
                         let _ = try responder.readHandshakeMessage(fuzzedMessage)
                     } catch {
-                        // Expected to handle corrupted data
-                        #expect(error is NoiseError || error is Error)
+                        // Expected to handle corrupted data (any error is acceptable)
+                        #expect(true) // Any error is acceptable for fuzz testing
                     }
                 } catch {
                     // Pattern setup might fail
@@ -163,8 +163,8 @@ struct FuzzTests {
                         do {
                             let _ = try responder.readMessage(randomMessage)
                         } catch {
-                            // Expected authentication failures for random data
-                            #expect(error is NoiseError || error is Error)
+                            // Expected authentication failures for random data (any error is acceptable)
+                            #expect(true) // Any error is acceptable for fuzz testing
                         }
                     }
                 } catch {
@@ -269,8 +269,8 @@ struct FuzzTests {
             do {
                 let _ = try Curve25519.dh(privateKey: alice.privateKey, publicKey: invalidPublicKeyData)
             } catch {
-                // May fail with invalid public key data
-                #expect(error is NoiseError || error is Error)
+                // May fail with invalid public key data (any error is acceptable)
+                #expect(true) // Any error is acceptable for fuzz testing
             }
         }
     }
