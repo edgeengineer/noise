@@ -12,8 +12,10 @@ A Swift implementation of the [Noise Protocol Framework](https://noiseprotocol.o
 - 🚀 **Modern**: Built with Swift 6.0 and latest cryptographic practices
 - 🔧 **Flexible**: Cryptographic agility with multiple cipher suites
 - 🏛️ **Compliant**: FIPS-approved crypto options for enterprise environments
+- 🔄 **Forward Secrecy**: Automatic and manual rekeying for long-lived sessions
+- 🛡️ **Robust**: Comprehensive error handling and test vector validation
 - 🌍 **Cross-platform**: Support for macOS, Linux, iOS, visionOS, tvOS, WASM, and Android
-- 🧪 **Tested**: Comprehensive test suite using Swift Testing (42/42 tests passing)
+- 🧪 **Tested**: Comprehensive test suite using Swift Testing (51/51 tests passing)
 - 📚 **Well-documented**: Full API documentation with examples
 
 ## Installation
@@ -24,7 +26,7 @@ Add the following to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/edgeengineer/noise.git", from: "0.0.2")
+    .package(url: "https://github.com/edgeengineer/noise.git", from: "0.0.3")
 ]
 ```
 
@@ -101,12 +103,22 @@ let _ = try responder.readHandshakeMessage(message3)
 
 ## Supported Handshake Patterns
 
-- **NN**: No authentication
+### Core Patterns (8 supported)
+- **N**: One-way, anonymous initiator to known responder
+- **K**: One-way, known keys (mutual authentication)  
+- **X**: One-way, mutual authentication with key exchange
+- **NN**: No authentication (anonymous)
 - **NK**: Known responder static key
-- **NX**: Unknown responder static key
-- **XN, XK, XX**: Unknown/known initiator and responder keys
-- **KN, KK, KX**: Known initiator static key patterns
-- **IN, IK, IX**: Immediate initiator static key patterns
+- **XX**: Mutual authentication with key discovery
+- **IX**: Interactive, immediate initiator authentication
+- **IK**: Interactive, known responder key
+
+### PSK Patterns (5 supported)
+- **NNpsk0, NNpsk2**: Pre-shared key variants of NN
+- **NKpsk0, NKpsk2**: Pre-shared key variants of NK  
+- **XXpsk3**: Pre-shared key variant of XX
+
+All patterns include comprehensive test coverage and follow the official Noise Protocol Framework specification.
 
 ## Cryptographic Suites
 
@@ -153,6 +165,38 @@ struct MyCustomSuite: NoiseCryptoSuite {
 }
 let customSession = try NoiseProtocol<MyCustomSuite>.handshake(pattern: .XX, initiator: true)
 ```
+
+## Rekeying for Forward Secrecy
+
+For long-lived sessions, rekeying provides forward secrecy by periodically updating cipher keys:
+
+```swift
+// Manual rekeying (both parties must coordinate)
+try initiatorSession.rekey()
+try responderSession.rekey()
+
+// Automatic rekeying policies
+session.rekeyPolicy = .messageCount(1000)    // Rekey after 1000 messages
+session.rekeyPolicy = .timeInterval(3600)    // Rekey every hour  
+session.rekeyPolicy = .nonceThreshold(50000) // Rekey before nonce exhaustion
+
+// Monitor session health
+let stats = session.getSessionStatistics()
+print("Messages sent: \(stats["sentMessages"]!)")
+print("Time since last rekey: \(stats["timeSinceLastRekey"]!)")
+
+// Check if rekeying is needed
+if session.shouldRekey() {
+    try session.rekey()
+}
+```
+
+### Security Benefits
+
+- **Forward secrecy**: Past messages remain secure even if current keys are compromised
+- **Nonce exhaustion protection**: Automatic rekeying prevents nonce overflow
+- **Long-lived session support**: Maintain security over extended periods
+- **Flexible policies**: Choose rekeying strategy based on your security requirements
 
 ## Examples
 
