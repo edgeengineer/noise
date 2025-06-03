@@ -16,7 +16,7 @@ A Swift implementation of the [Noise Protocol Framework](https://noiseprotocol.o
 - 🛡️ **Robust**: Comprehensive error handling and test vector validation
 - 🎯 **Battle-tested**: Extensive fuzz testing for vulnerability discovery
 - 🌍 **Cross-platform**: Support for macOS, Linux, iOS, visionOS, tvOS, WASM, and Android
-- 🧪 **Tested**: Comprehensive test suite using Swift Testing (90/90 tests passing)
+- 🧪 **Tested**: Comprehensive test suite using Swift Testing (103/103 tests passing)
 - ⚡ **Async/Await**: Modern Swift concurrency support for networking applications
 - 📚 **Well-documented**: Full API documentation with examples
 
@@ -28,7 +28,7 @@ Add the following to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/edgeengineer/noise.git", from: "0.0.5")
+    .package(url: "https://github.com/edgeengineer/noise.git", from: "0.1.0")
 ]
 ```
 
@@ -134,6 +134,29 @@ for try await plaintext in messageStream {
 ```
 
 Perfect for integration with URLSession, WebSocket, and other async networking APIs.
+
+### Actor-Based Thread Safety
+
+For concurrent scenarios, use the actor-based `AsyncNoiseSession`:
+
+```swift
+import Noise
+
+// Actor provides built-in thread safety
+let session = try await AsyncNoiseSession(pattern: .XX, initiator: true, staticKeypair: keypair)
+
+// Safe concurrent access from multiple tasks
+async let sending = session.writeMessage(plaintext1)
+async let receiving = session.readMessage(ciphertext2)
+let (sent, received) = try await (sending, receiving)
+
+// Batch operations for efficiency
+let ciphertexts = try await session.writeMessages([message1, message2, message3])
+```
+
+**When to use each approach:**
+- **NoiseSession with async extensions**: Single-task usage, maximum performance
+- **AsyncNoiseSession actor**: Multi-task concurrent access, automatic thread safety
 
 ## Supported Handshake Patterns
 
