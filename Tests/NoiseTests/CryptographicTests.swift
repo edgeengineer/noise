@@ -121,4 +121,109 @@ struct CryptographicTests {
         
         #expect(ciphertext1 != ciphertext2)
     }
+    
+    // MARK: - Additional Crypto Primitives Tests
+    
+    @Test("P-256 key generation")
+    func testP256KeyGeneration() {
+        let (privateKey, publicKey) = P256.generateKeypair()
+        #expect(privateKey.count == 32)
+        #expect(publicKey.count == 64) // Raw representation (x + y coordinates)
+    }
+    
+    @Test("P-256 DH operation")
+    func testP256DH() throws {
+        let alice = P256.generateKeypair()
+        let bob = P256.generateKeypair()
+        
+        let sharedSecret1 = try P256.dh(privateKey: alice.privateKey, publicKey: bob.publicKey)
+        let sharedSecret2 = try P256.dh(privateKey: bob.privateKey, publicKey: alice.publicKey)
+        
+        #expect(sharedSecret1.count == 32)
+        #expect(sharedSecret2.count == 32)
+        #expect(sharedSecret1 == sharedSecret2)
+    }
+    
+    @Test("AES-GCM encryption/decryption")
+    func testAESGCM() throws {
+        let key = Data(repeating: 0x42, count: 32)
+        let nonce: UInt64 = 0
+        let ad = Data("additional data".utf8)
+        let plaintext = Data("hello world".utf8)
+        
+        let ciphertext = try AESGCM.encrypt(key: key, nonce: nonce, associatedData: ad, plaintext: plaintext)
+        let decrypted = try AESGCM.decrypt(key: key, nonce: nonce, associatedData: ad, ciphertext: ciphertext)
+        
+        #expect(decrypted == plaintext)
+    }
+    
+    @Test("SHA-512 hash")
+    func testSHA512Hash() {
+        let data = Data("hello world".utf8)
+        let hash = SHA512Hash.hash(data)
+        
+        #expect(hash.count == 64)
+        
+        // Test against known hash
+        let expectedHash = Data([
+            0x30, 0x9e, 0xcc, 0x48, 0x9c, 0x12, 0xd6, 0xeb,
+            0x4c, 0xc4, 0x0f, 0x50, 0xc9, 0x02, 0xf2, 0xb4,
+            0xd0, 0xed, 0x77, 0xee, 0x51, 0x1a, 0x7c, 0x7a,
+            0x9b, 0xcd, 0x3c, 0xa8, 0x6d, 0x4c, 0xd8, 0x6f,
+            0x98, 0x9d, 0xd3, 0x5b, 0xc5, 0xff, 0x49, 0x96,
+            0x70, 0xda, 0x34, 0x25, 0x5b, 0x45, 0xb0, 0xcf,
+            0xd8, 0x30, 0xe8, 0x1f, 0x60, 0x5d, 0xcf, 0x7d,
+            0xc5, 0x54, 0x2e, 0x93, 0xae, 0x9c, 0xd7, 0x6f
+        ])
+        #expect(hash == expectedHash)
+    }
+    
+    @Test("SHA-512 HMAC")
+    func testSHA512HMAC() {
+        let key = Data("key".utf8)
+        let data = Data("data".utf8)
+        let hmac = SHA512Hash.hmac(key: key, data: data)
+        
+        #expect(hmac.count == 64)
+    }
+    
+    @Test("Crypto suite functionality")
+    func testCryptoSuites() {
+        // Test suite names and fragments
+        #expect(StandardSuite.suiteName.contains("Curve25519"))
+        #expect(StandardSuite.protocolFragment == "25519_ChaChaPoly_SHA256")
+        
+        #expect(NISTSuite.suiteName.contains("P-256"))
+        #expect(NISTSuite.protocolFragment == "P256_AESGCM_SHA256")
+        
+        #expect(HighSecuritySuite.suiteName.contains("SHA-512"))
+        #expect(HighSecuritySuite.protocolFragment == "P256_AESGCM_SHA512")
+    }
+    
+    @Test("Cross-crypto compatibility")
+    func testCryptoPrimitiveCompatibility() throws {
+        // Test that different primitives can work together
+        
+        // Test P-256 with different ciphers
+        let p256Keys = P256.generateKeypair()
+        #expect(p256Keys.privateKey.count == P256.dhlen)
+        
+        // Test AES-GCM with same interface as ChaCha20-Poly1305
+        let key = Data(repeating: 0x01, count: 32)
+        let plaintext = Data("test".utf8)
+        let ad = Data("ad".utf8)
+        
+        let chacha_encrypted = try ChaChaPoly.encrypt(key: key, nonce: 1, associatedData: ad, plaintext: plaintext)
+        let aes_encrypted = try AESGCM.encrypt(key: key, nonce: 1, associatedData: ad, plaintext: plaintext)
+        
+        // Different ciphers should produce different output
+        #expect(chacha_encrypted != aes_encrypted)
+        
+        // But both should decrypt correctly
+        let chacha_decrypted = try ChaChaPoly.decrypt(key: key, nonce: 1, associatedData: ad, ciphertext: chacha_encrypted)
+        let aes_decrypted = try AESGCM.decrypt(key: key, nonce: 1, associatedData: ad, ciphertext: aes_encrypted)
+        
+        #expect(chacha_decrypted == plaintext)
+        #expect(aes_decrypted == plaintext)
+    }
 }

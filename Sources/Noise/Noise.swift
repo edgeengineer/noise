@@ -445,3 +445,298 @@ public struct SHA256Hash: HashFunction {
         return Data(Crypto.HMAC<Crypto.SHA256>.authenticationCode(for: data, using: hmacKey))
     }
 }
+
+// MARK: - Additional Cryptographic Primitives for Agility
+
+/// P-256 elliptic curve Diffie-Hellman implementation
+///
+/// Provides NIST P-256 elliptic curve operations for environments requiring
+/// FIPS compliance or NIST-approved cryptography. P-256 offers approximately
+/// 128 bits of security with wide industry support.
+///
+/// ## Security Features
+///
+/// - **FIPS 186-4 compliant**: Meets federal cryptographic standards
+/// - **Wide compatibility**: Supported by most cryptographic libraries
+/// - **Hardware acceleration**: Optimized implementations available
+/// - **Proven security**: Extensively analyzed NIST standard curve
+///
+/// ## Usage
+///
+/// ```swift
+/// // Generate a new key pair
+/// let (privateKey, publicKey) = P256.generateKeypair()
+///
+/// // Perform key agreement
+/// let sharedSecret = try P256.dh(privateKey: myPrivate, publicKey: theirPublic)
+/// ```
+///
+/// - Note: This implementation uses Apple's CryptoKit for optimal security and performance
+public struct P256: DiffieHellmanFunction {
+    /// The length of P-256 keys in bytes (32 bytes for private key, 64 bytes for public key raw representation)
+    public static let dhlen = 32
+    
+    public static func generateKeypair() -> (privateKey: Data, publicKey: Data) {
+        let privateKey = Crypto.P256.KeyAgreement.PrivateKey()
+        // For compatibility, we use the full raw representation (64 bytes)
+        return (
+            privateKey: Data(privateKey.rawRepresentation),
+            publicKey: Data(privateKey.publicKey.rawRepresentation)
+        )
+    }
+    
+    public static func dh(privateKey: Data, publicKey: Data) throws -> Data {
+        guard privateKey.count == dhlen else {
+            throw NoiseError.invalidKeyLength(expected: dhlen, actual: privateKey.count)
+        }
+        guard publicKey.count == 64 else { // Raw representation is 64 bytes for P-256
+            throw NoiseError.invalidKeyLength(expected: 64, actual: publicKey.count)
+        }
+        
+        let privKey = try Crypto.P256.KeyAgreement.PrivateKey(rawRepresentation: privateKey)
+        let pubKey = try Crypto.P256.KeyAgreement.PublicKey(rawRepresentation: publicKey)
+        let sharedSecret = try privKey.sharedSecretFromKeyAgreement(with: pubKey)
+        return Data(sharedSecret.withUnsafeBytes { $0 })
+    }
+}
+
+/// AES-GCM authenticated encryption implementation  
+///
+/// Provides AEAD using the Advanced Encryption Standard (AES) in Galois/Counter Mode (GCM).
+/// AES-GCM is widely supported and offers excellent performance with hardware acceleration
+/// on most modern processors.
+///
+/// ## Security Features
+///
+/// - **FIPS 197 compliant**: Uses NIST-approved AES encryption
+/// - **Hardware acceleration**: Optimized on Intel/AMD processors with AES-NI
+/// - **Timing attack resistance**: Constant-time operations
+/// - **Wide compatibility**: Supported by most cryptographic libraries
+/// - **Proven security**: Extensively analyzed and widely deployed
+///
+/// ## Key Properties
+///
+/// - **Key size**: 256 bits (32 bytes) for maximum security
+/// - **Nonce size**: 96 bits used internally with 64-bit input nonce
+/// - **Authentication tag**: 128 bits for strong message authentication
+/// - **Maximum message size**: ~64 GB per nonce
+///
+/// ## Usage
+///
+/// ```swift
+/// let key = Data(repeating: 0x42, count: 32)
+/// let message = Data("Hello, world!".utf8)
+/// let associated = Data("metadata".utf8)
+///
+/// let encrypted = try AESGCM.encrypt(
+///     key: key,
+///     nonce: 0,
+///     associatedData: associated,
+///     plaintext: message
+/// )
+/// ```
+///
+/// - Note: This implementation uses Apple's CryptoKit for optimal security and performance
+public struct AESGCM: CipherFunction {
+    /// The length of AES-GCM keys in bytes (32 bytes for AES-256)
+    public static let keylen = 32
+    
+    public static func encrypt(key: Data, nonce: UInt64, associatedData: Data, plaintext: Data) throws -> Data {
+        guard key.count == keylen else {
+            throw NoiseError.invalidKeyLength(expected: keylen, actual: key.count)
+        }
+        
+        let symmetricKey = SymmetricKey(data: key)
+        var nonceBytes = Data(count: 12)
+        nonceBytes.withUnsafeMutableBytes { bytes in
+            bytes.storeBytes(of: nonce.littleEndian, toByteOffset: 4, as: UInt64.self)
+        }
+        
+        let cryptoNonce = try Crypto.AES.GCM.Nonce(data: nonceBytes)
+        let sealedBox = try Crypto.AES.GCM.seal(plaintext, using: symmetricKey, nonce: cryptoNonce, authenticating: associatedData)
+        return sealedBox.ciphertext + sealedBox.tag
+    }
+    
+    public static func decrypt(key: Data, nonce: UInt64, associatedData: Data, ciphertext: Data) throws -> Data {
+        guard key.count == keylen else {
+            throw NoiseError.invalidKeyLength(expected: keylen, actual: key.count)
+        }
+        guard ciphertext.count >= 16 else {
+            throw NoiseError.malformedMessage(reason: "Ciphertext too short (minimum 16 bytes required)")
+        }
+        
+        let symmetricKey = SymmetricKey(data: key)
+        var nonceBytes = Data(count: 12)
+        nonceBytes.withUnsafeMutableBytes { bytes in
+            bytes.storeBytes(of: nonce.littleEndian, toByteOffset: 4, as: UInt64.self)
+        }
+        
+        let cryptoNonce = try Crypto.AES.GCM.Nonce(data: nonceBytes)
+        let tag = ciphertext.suffix(16)
+        let encryptedData = ciphertext.dropLast(16)
+        
+        let sealedBox = try Crypto.AES.GCM.SealedBox(nonce: cryptoNonce, ciphertext: encryptedData, tag: tag)
+        return try Crypto.AES.GCM.open(sealedBox, using: symmetricKey, authenticating: associatedData)
+    }
+}
+
+/// SHA-512 cryptographic hash function implementation
+///
+/// Provides secure hashing using the SHA-512 algorithm from the SHA-2 family.
+/// SHA-512 offers stronger collision resistance than SHA-256 and is suitable
+/// for applications requiring higher security margins.
+///
+/// ## Security Properties
+///
+/// - **512-bit output**: Provides 256 bits of collision resistance
+/// - **Superior preimage resistance**: Higher security margin than SHA-256
+/// - **Avalanche effect**: Small input changes produce dramatically different outputs
+/// - **Deterministic**: Same input always produces same output
+/// - **FIPS 180-4 compliant**: Meets federal cryptographic standards
+///
+/// ## Performance
+///
+/// - **64-bit optimized**: Performs well on 64-bit processors
+/// - **Hardware acceleration**: Utilizes CPU crypto extensions when available
+/// - **Parallel friendly**: Internal structure enables parallel implementations
+///
+/// ## Usage
+///
+/// ```swift
+/// let data = Data("Hello, world!".utf8)
+/// let hash = SHA512Hash.hash(data)
+///
+/// let key = Data(repeating: 0x42, count: 64)
+/// let hmac = SHA512Hash.hmac(key: key, data: data)
+/// ```
+///
+/// - Note: This implementation uses Apple's CryptoKit for optimal security and performance
+public struct SHA512Hash: HashFunction {
+    /// The length of SHA-512 hash outputs in bytes (64 bytes)
+    public static let hashlen = 64
+    
+    public static func hash(_ data: Data) -> Data {
+        return Data(Crypto.SHA512.hash(data: data))
+    }
+    
+    public static func hmac(key: Data, data: Data) -> Data {
+        let hmacKey = SymmetricKey(data: key)
+        return Data(Crypto.HMAC<Crypto.SHA512>.authenticationCode(for: data, using: hmacKey))
+    }
+}
+
+// MARK: - Crypto Suite Support
+
+/// Protocol defining a complete cryptographic suite for Noise protocol
+///
+/// A crypto suite combines a Diffie-Hellman function, cipher function, and hash function
+/// into a cohesive set that works together. This enables cryptographic agility by
+/// allowing users to select different combinations of primitives.
+///
+/// ## Usage
+///
+/// ```swift
+/// // Use a predefined suite
+/// let session = try NoiseProtocol<StandardSuite>.handshake(pattern: .NN, initiator: true)
+///
+/// // Or define a custom suite
+/// struct CustomSuite: NoiseCryptoSuite {
+///     typealias DH = P256
+///     typealias Cipher = AESGCM  
+///     typealias Hash = SHA512Hash
+/// }
+/// let customSession = try NoiseProtocol<CustomSuite>.handshake(pattern: .NN, initiator: true)
+/// ```
+public protocol NoiseCryptoSuite {
+    /// The Diffie-Hellman function type for this suite
+    associatedtype DH: DiffieHellmanFunction
+    
+    /// The cipher function type for this suite
+    associatedtype Cipher: CipherFunction
+    
+    /// The hash function type for this suite
+    associatedtype Hash: HashFunction
+    
+    /// A human-readable name for this crypto suite
+    static var suiteName: String { get }
+    
+    /// The protocol name fragment for this suite (e.g., "25519_ChaChaPoly_SHA256")
+    static var protocolFragment: String { get }
+}
+
+/// Standard Noise crypto suite using Curve25519 + ChaCha20-Poly1305 + SHA-256
+///
+/// This is the recommended default suite offering excellent security and performance.
+/// It corresponds to the widely-used "25519_ChaChaPoly_SHA256" Noise configuration.
+///
+/// ## Security Properties
+///
+/// - **Post-quantum consideration**: Curve25519 provides good resistance to quantum attacks
+/// - **Side-channel resistance**: All primitives resist timing and cache attacks
+/// - **High performance**: Optimized for software implementations
+/// - **Wide compatibility**: Supported across all major Noise implementations
+///
+/// ## Usage
+///
+/// ```swift
+/// let session = try NoiseProtocol<StandardSuite>.handshake(pattern: .XX, initiator: true)
+/// ```
+public struct StandardSuite: NoiseCryptoSuite {
+    public typealias DH = Curve25519
+    public typealias Cipher = ChaChaPoly
+    public typealias Hash = SHA256Hash
+    
+    public static let suiteName = "Standard Curve25519 + ChaCha20-Poly1305 + SHA-256"
+    public static let protocolFragment = "25519_ChaChaPoly_SHA256"
+}
+
+/// NIST-compliant crypto suite using P-256 + AES-GCM + SHA-256
+///
+/// This suite uses NIST-approved cryptographic primitives suitable for
+/// environments requiring FIPS compliance or government security standards.
+///
+/// ## Compliance
+///
+/// - **FIPS 186-4**: P-256 elliptic curve
+/// - **FIPS 197**: AES encryption
+/// - **FIPS 180-4**: SHA-256 hash function
+/// - **SP 800-38D**: GCM mode of operation
+///
+/// ## Usage
+///
+/// ```swift
+/// let session = try NoiseProtocol<NISTSuite>.handshake(pattern: .XX, initiator: true)
+/// ```
+public struct NISTSuite: NoiseCryptoSuite {
+    public typealias DH = P256
+    public typealias Cipher = AESGCM
+    public typealias Hash = SHA256Hash
+    
+    public static let suiteName = "NIST P-256 + AES-GCM + SHA-256"
+    public static let protocolFragment = "P256_AESGCM_SHA256"
+}
+
+/// High-security crypto suite using P-256 + AES-GCM + SHA-512
+///
+/// This suite offers enhanced security margins with larger hash output
+/// suitable for applications with very high security requirements.
+///
+/// ## Security Benefits
+///
+/// - **Larger hash**: 512-bit hash provides greater collision resistance
+/// - **NIST compliance**: All FIPS-approved primitives
+/// - **Future-proofing**: Higher security margins against future attacks
+///
+/// ## Usage
+///
+/// ```swift
+/// let session = try NoiseProtocol<HighSecuritySuite>.handshake(pattern: .XX, initiator: true)
+/// ```
+public struct HighSecuritySuite: NoiseCryptoSuite {
+    public typealias DH = P256
+    public typealias Cipher = AESGCM
+    public typealias Hash = SHA512Hash
+    
+    public static let suiteName = "High Security P-256 + AES-GCM + SHA-512"
+    public static let protocolFragment = "P256_AESGCM_SHA512"
+}
