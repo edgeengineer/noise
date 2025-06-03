@@ -29,7 +29,10 @@ let package = Package(
         ),
         .testTarget(
             name: "NoiseTests",
-            dependencies: ["Noise"]
+            dependencies: ["Noise"],
+            swiftSettings: [
+                .define("SWIFT_TESTING_ENABLE_CRASH_REPORTER", .when(configuration: .debug))
+            ]
         ),
     ],
     swiftLanguageModes: [.v6]

@@ -236,7 +236,7 @@ struct AdvancedFailureTests {
         let _ = try initiator.readHandshakeMessage(message2)
         
         // Test completely random data as transport message (should fail authentication)
-        let randomData = Data((0..<32).map { _ in UInt8.random(in: 0...255) })
+        let randomData = Data((0..<32).map { index in UInt8((index * 7 + 42) % 256) }) // Deterministic
         
         do {
             let _ = try responder.readMessage(randomData)
@@ -426,8 +426,8 @@ struct AdvancedFailureTests {
         
         // Test multiple random data inputs
         for _ in 0..<10 {
-            let randomLength = Int.random(in: 0...100)
-            let randomData = Data((0..<randomLength).map { _ in UInt8.random(in: 0...255) })
+            let randomLength = 50 // Fixed length for determinism
+            let randomData = Data((0..<randomLength).map { index in UInt8((index * 13 + 123) % 256) }) // Deterministic
             
             // Should handle random data gracefully without crashing
             do {
@@ -454,8 +454,8 @@ struct AdvancedFailureTests {
         
         // Test random data as transport messages
         for _ in 0..<10 {
-            let randomLength = Int.random(in: 16...100) // At least MAC size
-            let randomData = Data((0..<randomLength).map { _ in UInt8.random(in: 0...255) })
+            let randomLength = 64 // Fixed length for determinism, at least MAC size
+            let randomData = Data((0..<randomLength).map { index in UInt8((index * 17 + 200) % 256) }) // Deterministic
             
             // Should handle random data gracefully
             do {

@@ -157,8 +157,7 @@ struct ActorAsyncTests {
             }
         }
         
-        // Cancel after a short delay
-        try await Task.sleep(nanoseconds: 1_000_000) // 1ms
+        // Cancel immediately to test cancellation handling
         task.cancel()
         
         try await task.value

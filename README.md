@@ -268,6 +268,23 @@ See the [examples](./examples) directory for more detailed usage examples:
   - HTTP client with Noise-encrypted payloads
   - Streaming data processing with AsyncSequence
 
+## Testing
+
+Run the test suite using:
+
+```bash
+swift test --parallel
+```
+
+The `--parallel` flag is recommended to avoid resource exhaustion issues when running the comprehensive test suite (103 tests including cryptographic and fuzz tests).
+
+For continuous integration or automated testing, always use the parallel flag:
+
+```bash
+# In CI/CD
+swift test --parallel --enable-code-coverage
+```
+
 ## Requirements
 
 - Swift 6.0 or later

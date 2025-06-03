@@ -365,8 +365,7 @@ class MockAsyncTransport: AsyncMessageTransport {
         let message = messages[currentIndex]
         currentIndex += 1
         
-        // Simulate some async delay
-        try await Task.sleep(nanoseconds: 1_000_000) // 1ms
+        // Return immediately for deterministic test behavior
         
         return message
     }
