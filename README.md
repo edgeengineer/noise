@@ -10,8 +10,10 @@ A Swift implementation of the [Noise Protocol Framework](https://noiseprotocol.o
 
 - 🔒 **Secure**: Implements the Noise Protocol Framework specification
 - 🚀 **Modern**: Built with Swift 6.0 and latest cryptographic practices
+- 🔧 **Flexible**: Cryptographic agility with multiple cipher suites
+- 🏛️ **Compliant**: FIPS-approved crypto options for enterprise environments
 - 🌍 **Cross-platform**: Support for macOS, Linux, iOS, visionOS, tvOS, WASM, and Android
-- 🧪 **Tested**: Comprehensive test suite using Swift Testing
+- 🧪 **Tested**: Comprehensive test suite using Swift Testing (42/42 tests passing)
 - 📚 **Well-documented**: Full API documentation with examples
 
 ## Installation
@@ -22,7 +24,7 @@ Add the following to your `Package.swift` file:
 
 ```swift
 dependencies: [
-    .package(url: "https://github.com/edgeengineer/noise.git", from: "0.0.1")
+    .package(url: "https://github.com/edgeengineer/noise.git", from: "0.0.2")
 ]
 ```
 
@@ -106,11 +108,51 @@ let _ = try responder.readHandshakeMessage(message3)
 - **KN, KK, KX**: Known initiator static key patterns
 - **IN, IK, IX**: Immediate initiator static key patterns
 
-## Cryptographic Primitives
+## Cryptographic Suites
 
+### StandardSuite (Default)
 - **DH**: Curve25519
-- **Cipher**: ChaCha20-Poly1305
+- **Cipher**: ChaCha20-Poly1305  
 - **Hash**: SHA-256
+- **Use case**: High performance, modern cryptography
+
+### NISTSuite (FIPS Compliant)
+- **DH**: P-256
+- **Cipher**: AES-GCM
+- **Hash**: SHA-256
+- **Use case**: Government/enterprise compliance
+
+### HighSecuritySuite
+- **DH**: P-256
+- **Cipher**: AES-GCM
+- **Hash**: SHA-512
+- **Use case**: Enhanced security margins
+
+### Custom Suites
+Define your own combinations of cryptographic primitives for specific requirements.
+
+## Cryptographic Agility
+
+Choose the cipher suite that best fits your requirements:
+
+```swift
+// High-performance default (same as v0.0.1)
+let session = try NoiseProtocol.handshake(pattern: .XX, initiator: true)
+
+// FIPS-compliant for enterprise
+let session = try NoiseProtocol<NISTSuite>.handshake(pattern: .XX, initiator: true)
+
+// Enhanced security
+let session = try NoiseProtocol<HighSecuritySuite>.handshake(pattern: .XX, initiator: true)
+
+// Custom suite
+struct MyCustomSuite: NoiseCryptoSuite {
+    typealias DH = P256
+    typealias Cipher = AESGCM  
+    typealias Hash = SHA512Hash
+}
+let customSession = try NoiseProtocol<MyCustomSuite>.handshake(pattern: .XX, initiator: true)
+```
 
 ## Examples
 
