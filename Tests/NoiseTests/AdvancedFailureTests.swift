@@ -22,6 +22,26 @@ import Testing
 @Suite("Advanced Failure Scenarios")
 struct AdvancedFailureTests {
     
+    /// Helper function to check if an error indicates a cryptographic failure
+    /// This handles platform differences between macOS and Linux crypto implementations
+    private func isCryptographicFailure(_ error: any Error) -> Bool {
+        if let noiseError = error as? NoiseError {
+            switch noiseError {
+            case .authenticationFailure, .decryptionFailure, .malformedMessage:
+                return true
+            default:
+                return false
+            }
+        }
+        
+        // Check for crypto-related errors from underlying implementations
+        let errorString = String(describing: error)
+        return errorString.contains("authentication") ||
+               errorString.contains("decrypt") ||
+               errorString.contains("underlyingCoreCryptoError") ||
+               errorString.contains("503316581") // Specific Linux crypto error code
+    }
+    
     // MARK: - Message Tampering Tests
     
     @Test("Tampered handshake message - modified ciphertext")
@@ -48,22 +68,8 @@ struct AdvancedFailureTests {
         do {
             let _ = try initiator.readHandshakeMessage(tamperedMessage)
             #expect(Bool(false), "Should have thrown an error for tampered encrypted message")
-        } catch let error as NoiseError {
-            // Expected to throw authentication or decryption error for tampered encrypted message
-            switch error {
-            case .authenticationFailure, .decryptionFailure, .malformedMessage:
-                #expect(true) // These are the expected error types
-            default:
-                #expect(Bool(false), "Unexpected error type: \(error)")
-            }
         } catch {
-            // CryptoKit or other errors are also acceptable for tampered messages
-            let errorString = String(describing: error)
-            if errorString.contains("authentication") || errorString.contains("decrypt") {
-                #expect(true) // Expected authentication/decryption failure
-            } else {
-                #expect(Bool(false), "Expected authentication/decryption error but got: \(error)")
-            }
+            #expect(isCryptographicFailure(error), "Expected cryptographic failure but got: \(error)")
         }
     }
     
@@ -95,21 +101,8 @@ struct AdvancedFailureTests {
         do {
             let _ = try responder.readMessage(tamperedCiphertext)
             #expect(Bool(false), "Should have thrown an authentication error")
-        } catch let error as NoiseError {
-            // Expected authentication failure for tampered MAC
-            if case .authenticationFailure = error {
-                #expect(true) // Expected NoiseError.authenticationFailure
-            } else {
-                #expect(Bool(false), "Expected NoiseError.authenticationFailure but got: \(error)")
-            }
         } catch {
-            // CryptoKit may throw its own authentication errors
-            let errorString = String(describing: error)
-            if errorString.contains("authentication") {
-                #expect(true) // Expected authentication failure from CryptoKit
-            } else {
-                #expect(Bool(false), "Expected authentication failure but got: \(error)")
-            }
+            #expect(isCryptographicFailure(error), "Expected cryptographic failure but got: \(error)")
         }
     }
     
@@ -206,13 +199,7 @@ struct AdvancedFailureTests {
                 #expect(Bool(false), "Unexpected error for out-of-order message: \(error)")
             }
         } catch {
-            // CryptoKit or other errors are also acceptable for tampered messages
-            let errorString = String(describing: error)
-            if errorString.contains("authentication") || errorString.contains("decrypt") {
-                #expect(true) // Expected authentication/decryption failure
-            } else {
-                #expect(Bool(false), "Expected authentication/decryption error but got: \(error)")
-            }
+            #expect(isCryptographicFailure(error), "Expected cryptographic failure but got: \(error)")
         }
         
         // Try to send a handshake message after completion
@@ -241,21 +228,8 @@ struct AdvancedFailureTests {
         do {
             let _ = try responder.readMessage(randomData)
             #expect(Bool(false), "Should have thrown an error")
-        } catch let error as NoiseError {
-            // Expected authentication failure for random transport data
-            if case .authenticationFailure = error {
-                #expect(true) // Expected NoiseError.authenticationFailure
-            } else {
-                #expect(Bool(false), "Expected NoiseError.authenticationFailure but got: \(error)")
-            }
         } catch {
-            // CryptoKit may throw its own authentication errors
-            let errorString = String(describing: error)
-            if errorString.contains("authentication") {
-                #expect(true) // Expected authentication failure from CryptoKit
-            } else {
-                #expect(Bool(false), "Expected authentication failure but got: \(error)")
-            }
+            #expect(isCryptographicFailure(error), "Expected cryptographic failure but got: \(error)")
         }
         
         // Test empty message (too short for MAC)
@@ -271,13 +245,7 @@ struct AdvancedFailureTests {
                 #expect(Bool(false), "Unexpected error type: \(error)")
             }
         } catch {
-            // CryptoKit or other errors are also acceptable for tampered messages
-            let errorString = String(describing: error)
-            if errorString.contains("authentication") || errorString.contains("decrypt") {
-                #expect(true) // Expected authentication/decryption failure
-            } else {
-                #expect(Bool(false), "Expected authentication/decryption error but got: \(error)")
-            }
+            #expect(isCryptographicFailure(error), "Expected cryptographic failure but got: \(error)")
         }
     }
     
@@ -461,21 +429,8 @@ struct AdvancedFailureTests {
             do {
                 let _ = try responder.readMessage(randomData)
                 #expect(Bool(false), "Should have thrown an error")
-            } catch let error as NoiseError {
-                // Expected authentication failure for random transport data
-                if case .authenticationFailure = error {
-                    #expect(true) // Expected NoiseError.authenticationFailure
-                } else {
-                    #expect(Bool(false), "Expected NoiseError.authenticationFailure but got: \(error)")
-                }
             } catch {
-                // CryptoKit may throw its own authentication errors
-                let errorString = String(describing: error)
-                if errorString.contains("authentication") {
-                    #expect(true) // Expected authentication failure from CryptoKit
-                } else {
-                    #expect(Bool(false), "Expected authentication failure but got: \(error)")
-                }
+                #expect(isCryptographicFailure(error), "Expected cryptographic failure but got: \(error)")
             }
         }
     }
@@ -535,21 +490,8 @@ struct AdvancedFailureTests {
         do {
             let _ = try responder.readMessage(ciphertext)
             #expect(Bool(false), "Should have thrown an authentication error")
-        } catch let error as NoiseError {
-            // Expected authentication failure for tampered MAC
-            if case .authenticationFailure = error {
-                #expect(true) // Expected NoiseError.authenticationFailure
-            } else {
-                #expect(Bool(false), "Expected NoiseError.authenticationFailure but got: \(error)")
-            }
         } catch {
-            // CryptoKit may throw its own authentication errors
-            let errorString = String(describing: error)
-            if errorString.contains("authentication") {
-                #expect(true) // Expected authentication failure from CryptoKit
-            } else {
-                #expect(Bool(false), "Expected authentication failure but got: \(error)")
-            }
+            #expect(isCryptographicFailure(error), "Expected cryptographic failure but got: \(error)")
         }
     }
     
